@@ -1,0 +1,16 @@
+{
+  "name": "uptime",
+  "version": "0.1.0",
+  "description": "Self-hosted uptime monitor that runs entirely on GitHub Actions. No server, no cloud account, no third-party service.",
+  "type": "module",
+  "license": "MIT",
+  "engines": {
+    "node": ">=22"
+  },
+  "bin": {
+    "uptime": "bin/uptime.js"
+  },
+  "scripts": {
+    "test": "node --test test/"
+  }
+}
