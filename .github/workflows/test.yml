@@ -1,0 +1,37 @@
+name: test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # package.json claims Node 22+; the check workflow runs on 22, so 24 is
+        # here to catch the next runtime bump before the cron job does.
+        node-version: ['22', '24']
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+
+      # No path argument: `node --test test/` runs on 20 and fails on 22+ with
+      # "Cannot find module .../test", because those versions treat the argument
+      # as a file to execute rather than a directory to search.
+      - name: Tests
+        run: node --test
+
+      # The monitor's own config is validated by the code that reads it, so a
+      # typo in targets.yml fails here instead of silently checking nothing.
+      - name: Validate targets.yml
+        run: node --input-type=module -e "
+          const { loadConfigFromFile } = await import('./src/config.js');
+          const config = loadConfigFromFile('targets.yml');
+          for (const t of config.targets) console.log(t.id, '->', t.url, '| every_failures:', t.every_failures ?? 'default');"

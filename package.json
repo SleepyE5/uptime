@@ -11,6 +11,6 @@
     "uptime": "bin/uptime.js"
   },
   "scripts": {
-    "test": "node --test test/"
+    "test": "node --test"
   }
 }
