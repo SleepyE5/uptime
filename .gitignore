@@ -2,6 +2,7 @@ node_modules/
 npm-debug.log*
 *.log
 .DS_Store
+._*
 .env
 .env.*
 # transient files from atomic state writes; the committed state file itself must NOT be ignored

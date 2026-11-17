@@ -1,5 +1,63 @@
 {
-  "targets": {},
-  "updated_at": "2026-11-17T18:29:51.881Z",
+  "targets": {
+    "api-health": {
+      "consecutive_failures": 0,
+      "first_seen_at": "2026-11-17T18:31:55.436Z",
+      "id": "api-health",
+      "issue_number": null,
+      "label": "Status API",
+      "last_checked_at": "2026-11-17T18:31:55.436Z",
+      "last_failure_at": null,
+      "last_result": {
+        "detail": null,
+        "ok": true,
+        "reason": null,
+        "status": 200
+      },
+      "last_success_at": "2026-11-17T18:31:55.436Z",
+      "outage_started_at": null,
+      "status": "up",
+      "url": "https://www.githubstatus.com/api/v2/status.json"
+    },
+    "homepage": {
+      "consecutive_failures": 0,
+      "first_seen_at": "2026-11-17T18:31:55.311Z",
+      "id": "homepage",
+      "issue_number": null,
+      "label": "Homepage",
+      "last_checked_at": "2026-11-17T18:31:55.311Z",
+      "last_failure_at": null,
+      "last_result": {
+        "detail": null,
+        "ok": true,
+        "reason": null,
+        "status": 200
+      },
+      "last_success_at": "2026-11-17T18:31:55.311Z",
+      "outage_started_at": null,
+      "status": "up",
+      "url": "https://example.com/"
+    },
+    "www-redirect": {
+      "consecutive_failures": 0,
+      "first_seen_at": "2026-11-17T18:31:55.538Z",
+      "id": "www-redirect",
+      "issue_number": null,
+      "label": "WWW (redirects to apex)",
+      "last_checked_at": "2026-11-17T18:31:55.538Z",
+      "last_failure_at": null,
+      "last_result": {
+        "detail": null,
+        "ok": true,
+        "reason": null,
+        "status": 200
+      },
+      "last_success_at": "2026-11-17T18:31:55.538Z",
+      "outage_started_at": null,
+      "status": "up",
+      "url": "https://www.example.com/"
+    }
+  },
+  "updated_at": "2026-11-17T18:31:55.610Z",
   "version": 1
 }

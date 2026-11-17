@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="78" height="20" role="img" aria-label="uptime: up">
+  <rect width="55" height="20" fill="#555"></rect>
+  <rect x="55" width="23" height="20" fill="#44cc11"></rect>
+  <text x="27" y="14" font-family="Verdana,Geneva,sans-serif" font-size="9" fill="#fff" text-anchor="middle">uptime</text>
+  <text x="66.5" y="14" font-family="Verdana,Geneva,sans-serif" font-size="9" fill="#fff" text-anchor="middle">up</text>
+</svg>
