@@ -101,7 +101,6 @@ export function renderStatusTable(targets, state, { now = new Date(), repoUrl = 
   // the ages in the last-success column are only meaningful against this moment
   lines.push('');
   lines.push(`_Checked at ${now.toISOString().slice(0, 16).replace('T', ' ')} UTC. Ages are relative to that run._`);
-  lines.push(MARKER_END);
 
   const configured = new Set(targets.map((t) => t.id));
   const removed = Object.entries(state.targets ?? {}).filter(([id]) => !configured.has(id));
@@ -114,6 +113,10 @@ export function renderStatusTable(targets, state, { now = new Date(), repoUrl = 
       lines.push(`- \`${id}\` — ${finalStatus}, last checked ${entry?.last_checked_at ?? 'never'}`);
     }
   }
+  // The end marker closes the whole generated region, removed targets included.
+  // Anything emitted after it is outside the span the next run replaces, so it
+  // would accumulate one more stale copy per run instead of being overwritten.
+  lines.push(MARKER_END);
   return `${lines.join('\n')}\n`;
 }
 

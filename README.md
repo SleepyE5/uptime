@@ -22,19 +22,13 @@ monitor is worse than no monitor.
 | [GitHub status API (github-status)](https://www.githubstatus.com/api/v2/status.json) | ![up](https://img.shields.io/badge/status-up-brightgreen) | 18:59 UTC | just now | 0 | — |  |
 
 _Checked at 2026-11-17 18:59 UTC. Ages are relative to that run._
+
+_Removed targets (kept for history, no longer checked):_
+
+- `api-health` — last seen up, last checked 2026-11-17T18:31:55.436Z
+- `homepage` — last seen up, last checked 2026-11-17T18:31:55.311Z
+- `www-redirect` — last seen up, last checked 2026-11-17T18:31:55.538Z
 <!-- uptime:end -->
-
-_Removed targets (kept for history, no longer checked):_
-
-- `api-health` — last seen up, last checked 2026-11-17T18:31:55.436Z
-- `homepage` — last seen up, last checked 2026-11-17T18:31:55.311Z
-- `www-redirect` — last seen up, last checked 2026-11-17T18:31:55.538Z
-
-_Removed targets (kept for history, no longer checked):_
-
-- `api-health` — last seen up, last checked 2026-11-17T18:31:55.436Z
-- `homepage` — last seen up, last checked 2026-11-17T18:31:55.311Z
-- `www-redirect` — last seen up, last checked 2026-11-17T18:31:55.538Z
 
 ## How it works
 

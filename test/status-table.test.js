@@ -10,6 +10,8 @@ import {
 
 const NOW = new Date('2026-11-03T12:00:00.000Z');
 
+const count = (hay, needle) => hay.split(needle).length - 1;
+
 const targets = [
   { id: 'blog', label: 'Blog', url: 'https://blog.example.com' },
   { id: 'api', label: 'API', url: 'https://api.example.com' },
@@ -117,6 +119,30 @@ test('injectIntoReadme replaces only the marked block', () => {
   assert.match(out, /\| fresh \| row \|/);
   assert.ok(!out.includes('stale'));
   assert.equal(out.split(MARKER_BEGIN).length - 1, 1, 'markers must not be duplicated');
+});
+
+test('the generated block round-trips: injecting the same run twice changes nothing', () => {
+  // The removed-target list is part of what each run generates, so it has to
+  // live inside the markers. When MARKER_END was emitted before it, every run
+  // appended another copy that the next replacement could not reach, and the
+  // README grew one stale section per run forever.
+  const readme = `# uptime\n\nIntro stays.\n\n${MARKER_BEGIN}\nplaceholder\n${MARKER_END}\n\nOutro stays.\n`;
+  const table = renderStatusTable(targets, state, { now: NOW, repoUrl: 'https://github.com/acme/uptime' });
+
+  const once = injectIntoReadme(readme, table);
+  const twice = injectIntoReadme(once, table);
+  const thrice = injectIntoReadme(twice, table);
+
+  for (const [n, doc] of [[1, once], [2, twice], [3, thrice]]) {
+    assert.equal(count(doc, 'Removed targets'), 1, `run ${n}: exactly one removed-target section`);
+    assert.equal(count(doc, MARKER_END), 1, `run ${n}: exactly one end marker`);
+    assert.equal(count(doc, MARKER_BEGIN), 1, `run ${n}: exactly one begin marker`);
+  }
+  assert.equal(twice, once, 'a second run must be a no-op, not an append');
+  assert.equal(thrice, once, 'and so must a third');
+  assert.match(once, /Intro stays\./);
+  assert.match(once, /Outro stays\./);
+  assert.match(once, /`gone-site`/, 'the removed target still shows up');
 });
 
 test('injectIntoReadme refuses to guess when markers are missing or inverted', () => {
