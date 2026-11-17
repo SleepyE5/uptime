@@ -1,0 +1,128 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import {
+  renderStatusTable,
+  injectIntoReadme,
+  renderBadgeSvg,
+  MARKER_BEGIN,
+  MARKER_END,
+} from '../src/status-table.js';
+
+const NOW = new Date('2026-11-03T12:00:00.000Z');
+
+const targets = [
+  { id: 'blog', label: 'Blog', url: 'https://blog.example.com' },
+  { id: 'api', label: 'API', url: 'https://api.example.com' },
+  { id: 'fresh', label: 'fresh', url: 'https://fresh.example.com' },
+];
+
+const state = {
+  version: 1,
+  updated_at: '2026-11-03T11:55:00.000Z',
+  targets: {
+    blog: {
+      status: 'up',
+      consecutive_failures: 0,
+      last_checked_at: '2026-11-03T11:55:00.000Z',
+      last_success_at: '2026-11-03T11:55:00.000Z',
+      last_failure_at: '2026-11-01T09:00:00.000Z',
+      issue_number: null,
+      last_result: { ok: true, status: 200, reason: null, detail: null },
+    },
+    api: {
+      status: 'down',
+      consecutive_failures: 3,
+      last_checked_at: '2026-11-03T11:55:00.000Z',
+      last_success_at: '2026-11-03T05:10:00.000Z',
+      last_failure_at: '2026-11-03T11:40:00.000Z',
+      issue_number: 41,
+      last_result: { ok: false, status: 503, reason: 'status-mismatch', detail: 'HTTP 503, expected 2xx' },
+    },
+    'gone-site': {
+      status: 'down',
+      consecutive_failures: 9,
+      last_checked_at: '2026-10-20T00:00:00.000Z',
+      last_success_at: null,
+      last_failure_at: '2026-10-20T00:00:00.000Z',
+      issue_number: 12,
+      last_result: { ok: false, status: null, reason: 'timeout', detail: 'timed out' },
+    },
+    // 'fresh' intentionally absent: configured but never checked yet
+  },
+};
+
+test('table shows up, down, never-checked rows and a removed-target section', () => {
+  const md = renderStatusTable(targets, state, { now: NOW, repoUrl: 'https://github.com/acme/uptime' });
+  const lines = md.split('\n');
+  assert.ok(lines[0].includes(MARKER_BEGIN));
+
+  const blogRow = lines.find((l) => l.includes('Blog'));
+  assert.match(blogRow, /status-up-brightgreen/);
+  assert.match(blogRow, /5m ago/);
+
+  const apiRow = lines.find((l) => l.includes('API \(api'));
+  assert.match(apiRow, /status-down-red/);
+  assert.match(apiRow, /\[#41\]\(https:\/\/github\.com\/acme\/uptime\/issues\/41\)/);
+  assert.match(apiRow, /HTTP 503, expected 2xx/);
+  assert.match(apiRow, /\| 3 \|/);
+
+  const freshRow = lines.find((l) => l.includes('fresh'));
+  assert.match(freshRow, /status-unknown-lightgrey/);
+  assert.match(freshRow, /never/);
+
+  assert.match(md, /Removed targets/);
+  assert.match(md, /`gone-site` — last seen down, last checked 2026-10-20T00:00:00\.000Z/);
+  assert.ok(lines.at(-2).includes(MARKER_END) || md.includes(`${MARKER_END}\n`));
+});
+
+test('issue reference degrades to plain text without a repoUrl', () => {
+  const md = renderStatusTable(targets, state, { now: NOW, repoUrl: null });
+  const apiRow = md.split('\n').find((l) => l.includes('API'));
+  assert.match(apiRow, /\| #41 \|/);
+  assert.ok(!apiRow.includes('http://') || !/#41\]\(/.test(apiRow));
+});
+
+test('pipes in detail strings are escaped so the table cannot break', () => {
+  const nastyState = structuredClone(state);
+  nastyState.targets.api.last_result.detail = 'HTTP 503 | node "weird" | down';
+  const md = renderStatusTable(targets, nastyState, { now: NOW });
+  const apiRow = md.split('\n').find((l) => l.includes('API'));
+  assert.ok(apiRow.includes('\\|'), 'pipes escaped');
+  const cellCount = apiRow.split(/(?<!\\)\|/).length;
+  assert.equal(cellCount, 9, 'row must keep exactly 7 columns regardless of content');
+});
+
+test('injectIntoReadme replaces only the marked block', () => {
+  const readme = [
+    '# My site',
+    '',
+    'Intro stays.',
+    '',
+    MARKER_BEGIN,
+    '| stale | rows |',
+    MARKER_END,
+    '',
+    'Outro stays.',
+    '',
+  ].join('\n');
+  const table = `${MARKER_BEGIN}\n| fresh | row |\n${MARKER_END}\n`;
+  const out = injectIntoReadme(readme, table);
+  assert.match(out, /Intro stays\./);
+  assert.match(out, /Outro stays\./);
+  assert.match(out, /\| fresh \| row \|/);
+  assert.ok(!out.includes('stale'));
+  assert.equal(out.split(MARKER_BEGIN).length - 1, 1, 'markers must not be duplicated');
+});
+
+test('injectIntoReadme refuses to guess when markers are missing or inverted', () => {
+  assert.throws(() => injectIntoReadme('# no markers here', 'x'), /missing the generated-status markers/);
+  assert.throws(() => injectIntoReadme(`${MARKER_END}\n${MARKER_BEGIN}`, 'x'), /missing the generated-status markers/);
+});
+
+test('badge svg: down wins, empty state is unknown, all up is green', () => {
+  assert.match(renderBadgeSvg(targets, state), /fill="#e05d44"/);
+  assert.match(renderBadgeSvg(targets, { targets: {} }), /fill="#9f9f9f"/);
+  const allUp = { targets: { blog: state.targets.blog, api: state.targets.blog, fresh: state.targets.blog } };
+  assert.match(renderBadgeSvg(targets, allUp), /fill="#44cc11"/);
+  assert.match(renderBadgeSvg(targets, state), /aria-label="uptime: down"/);
+});
