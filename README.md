@@ -105,12 +105,16 @@ external monitor (or your own probe on a real VM) for that.
        contain: "expected text on the page"
    ```
 
-3. **Keep `.github/workflows/check.yml`.** It is already correct for a repo
-   where this tool is the only thing running. Commit and push to `main`.
+3. **Keep `.github/workflows/uptime-check.yml`.** It is already correct for a
+   repo where this tool is the only thing running. Commit and push to `main`.
 4. **Wait for the next cron tick** (or run the workflow once manually from
    the Actions tab → *Run workflow*). The workflow checks every target,
    commits the state file back, updates the table above, and opens issues
-   for anything newly down.
+   for anything newly down. If nothing ever arrives, do not assume the
+   monitor is broken — see the note on `next_run_at` under *Honest
+   trade-offs*, and check that the push actually landed on the default
+   branch, because a schedule on a non-default branch is silently never
+   registered.
 5. Done. Verify by stopping one of your services and waiting ≤ 10 minutes:
    an issue labelled `uptime-monitor` should appear.
 
