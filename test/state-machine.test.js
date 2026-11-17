@@ -200,6 +200,35 @@ test('failure updates counters and keeps issue number', () => {
   assert.equal(next.last_success_at, '2026-11-02T22:00:00.000Z', 'last success must survive failures');
 });
 
+test('outage_started_at marks the first failing check and survives the whole streak', () => {
+  // up -> down begins the outage
+  const r1 = failure({ checkedAt: '2026-11-03T10:00:00.000Z' });
+  let { next } = decideTransition({ previous: upEntry(), result: r1, target });
+  assert.equal(next.outage_started_at, '2026-11-03T10:00:00.000Z');
+  // subsequent failures keep the original start, not the latest failure
+  const r2 = failure({ checkedAt: '2026-11-03T10:05:00.000Z' });
+  ({ next } = decideTransition({ previous: { ...next, issue_number: 41 }, result: r2, target }));
+  assert.equal(next.outage_started_at, '2026-11-03T10:00:00.000Z');
+  assert.equal(next.last_failure_at, '2026-11-03T10:05:00.000Z');
+  // recovery clears it
+  ({ next } = decideTransition({ previous: { ...next }, result: result({ checkedAt: '2026-11-03T10:30:00.000Z' }), target }));
+  assert.equal(next.outage_started_at, null);
+});
+
+test('close body measures downtime from outage start, not the last failure', () => {
+  const { payload } = decideTransition({
+    previous: downEntry({
+      issue_number: 41,
+      consecutive_failures: 3,
+      last_failure_at: '2026-11-03T10:25:00.000Z',
+      outage_started_at: '2026-11-03T10:00:00.000Z',
+    }),
+    result: result({ checkedAt: '2026-11-03T10:30:00.000Z' }),
+    target,
+  });
+  assert.match(payload.body, /\*\*Downtime:\*\* 30m \(2026-11-03T10:00:00\.000Z -> 2026-11-03T10:30:00\.000Z\)/);
+});
+
 test('success clears issue number and resets failure streak but keeps failure history timestamps', () => {
   const { next } = decideTransition({
     previous: downEntry({ issue_number: 41 }),

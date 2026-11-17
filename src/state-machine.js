@@ -102,7 +102,7 @@ function buildCommentBody(result, previous, target) {
 }
 
 function buildCloseBody(result, previous) {
-  const downSince = previous?.last_failure_at ?? null;
+  const downSince = previous?.outage_started_at ?? previous?.last_failure_at ?? null;
   const duration = downSince ? formatDuration(Date.parse(result.checkedAt) - Date.parse(downSince)) : 'unknown';
   return [
     `Recovered. The check passed again.`,
@@ -141,6 +141,13 @@ export function decideTransition({ previous, result, target = null }) {
     last_checked_at: result.checkedAt,
     last_success_at: result.ok ? result.checkedAt : (prev?.last_success_at ?? null),
     last_failure_at: result.ok ? (prev?.last_failure_at ?? null) : result.checkedAt,
+    // When the CURRENT outage began: first failing check of the streak, so a
+    // close comment reports real downtime rather than "since last failure".
+    outage_started_at: result.ok
+      ? null
+      : prev?.status === 'down'
+        ? (prev.outage_started_at ?? prev.last_failure_at ?? result.checkedAt)
+        : result.checkedAt,
     last_result: {
       ok: result.ok,
       status: result.status ?? null,
