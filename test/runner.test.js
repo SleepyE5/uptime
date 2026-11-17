@@ -107,7 +107,7 @@ const run = async (d, { configPath, transport, github, clock, readmePath = null 
     log: () => {},
   });
 
-test('full outage lifecycle across five runs: seed, open, comment x2, close', async () => {
+test('full outage lifecycle: seed, open, four silent runs, one comment, close', async () => {
   const d = dir();
   const configPath = writeConfig(d, ONE_TARGET);
   const transport = new ScriptedTransport();
@@ -131,24 +131,34 @@ test('full outage lifecycle across five runs: seed, open, comment x2, close', as
   assert.match(issue.body, /\*\*URL:\*\* https:\/\/blog\.example\.com/);
   assert.match(issue.body, /timeout/);
 
-  // runs 3+4: still down — exactly one comment each, never a second issue
-  for (const _ of [3, 4]) {
+  // runs 3-6: the same failure again and again. Nothing is written: an outage
+  // that says the same thing twice is an outage that gets muted.
+  for (const _ of [3, 4, 5, 6]) {
     clock.advance();
     const before = github.calls.length;
     summary = await run(d, { configPath, transport, github, clock });
-    assert.deepEqual(github.methodNames.slice(before), ['commentIssue']);
+    assert.deepEqual(github.methodNames.slice(before), [], 'a silent run writes nothing to GitHub');
     assert.equal(summary.opened, 0);
+    assert.equal(summary.commented, 0);
   }
   assert.equal(github.issues.size, 1, 'never a duplicate issue for one outage');
-  assert.equal(github.issues.get(1).comments.length, 2);
+  assert.equal(github.issues.get(1).comments.length, 0);
 
-  // run 5: recovery — close with the downtime span
+  // run 7: six consecutive failures, the scheduled update arrives
+  clock.advance();
+  summary = await run(d, { configPath, transport, github, clock });
+  assert.equal(summary.commented, 1);
+  assert.match(github.issues.get(1).comments.at(-1), /\*\*Consecutive failures:\*\* 6/);
+  assert.match(github.issues.get(1).comments.at(-1), /Next update after 6 more failing runs/);
+
+  // run 8: recovery — close with the downtime span
   clock.advance();
   transport.set('https://blog.example.com/', { response: { status: 200, body: 'ok', finalUrl: 'https://blog.example.com', redirects: 0 } });
   summary = await run(d, { configPath, transport, github, clock });
   assert.deepEqual(summary.results[0], { id: 'blog', ok: true, reason: null, action: 'close-issue' });
   assert.equal(github.issues.get(1).state, 'closed');
-  assert.match(github.issues.get(1).comments.at(-1), /\*\*Downtime:\*\* 15m/);
+  // down since run 2 (10:05), back up at run 8 (10:35)
+  assert.match(github.issues.get(1).comments.at(-1), /\*\*Downtime:\*\* 30m/);
 
   // final state: clean, up, no issue reference
   const state = JSON.parse(readFileSync(join(d, 'state', 'history.json'), 'utf8'));

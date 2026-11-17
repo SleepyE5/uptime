@@ -17,13 +17,30 @@ function escapeCell(text) {
   return String(text).replace(/\|/g, '\\|').replace(/\n/g, ' ');
 }
 
+/**
+ * A clock time, not an age.
+ *
+ * The README is rewritten by the same run that produced the numbers, so a
+ * "last checked 0s ago" column is true, useless, and reads like a placeholder.
+ * The absolute minute is what a status page needs; ages stay where they carry
+ * information ("last success 3d ago").
+ */
+function clockTime(iso) {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? String(iso) : `${d.toISOString().slice(11, 16)} UTC`;
+}
+
 /** Human "how long ago" for a timestamp, given `now`. */
 function ago(iso, nowMs) {
   if (!iso) return '—';
   const ms = nowMs - Date.parse(iso);
   if (!Number.isFinite(ms) || ms < 0) return iso;
   const s = Math.floor(ms / 1000);
-  if (s < 120) return `${s}s ago`;
+  // A target that is fine was checked this second, so "0s ago" is what the
+  // common case would print forever. It reads as a placeholder.
+  if (s < 60) return 'just now';
+  if (s < 120) return '1m ago';
   const m = Math.floor(s / 60);
   if (m < 120) return `${m}m ago`;
   const h = Math.floor(m / 60);
@@ -47,7 +64,7 @@ function row(target, entry, { nowMs, repoUrl }) {
     issue = '—';
   } else {
     status = entry.status === 'up' ? BADGE.up : BADGE.down;
-    lastCheck = ago(entry.last_checked_at, nowMs);
+    lastCheck = clockTime(entry.last_checked_at);
     lastSuccess = entry.last_success_at ? ago(entry.last_success_at, nowMs) : 'never';
     fails = String(entry.consecutive_failures ?? 0);
     if (entry.issue_number != null) {
@@ -81,6 +98,9 @@ export function renderStatusTable(targets, state, { now = new Date(), repoUrl = 
   for (const target of targets) {
     lines.push(row(target, state.targets?.[target.id] ?? null, { nowMs, repoUrl }));
   }
+  // the ages in the last-success column are only meaningful against this moment
+  lines.push('');
+  lines.push(`_Checked at ${now.toISOString().slice(0, 16).replace('T', ' ')} UTC. Ages are relative to that run._`);
   lines.push(MARKER_END);
 
   const configured = new Set(targets.map((t) => t.id));
