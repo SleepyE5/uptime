@@ -10,8 +10,9 @@
 //   down*   + down    -> open-issue  (second consecutive failure CONFIRMS the
 //          no issue                  outage, now we alert)
 //   up      + down    -> open-issue  (transition up -> down)
-//   down    + down    -> comment     (exactly one comment per run per target;
-//         issue open                 never a second issue for the same outage)
+//   down    + down    -> comment     (only on the runs the reader asked for:
+//                                     see COMMENT_EVERY. Never a second issue
+//                                     for the same outage.)
 //   down    + up      -> close-issue (only if an issue number is in state)
 //   down    + up      -> none        (outage ended before it was ever confirmed)
 //   up      + up      -> none
@@ -32,6 +33,21 @@ export const issueMarker = (id) => `${ISSUE_MARKER_PREFIX}${id} -->`;
 /** A new, never-checked target must fail this many consecutive runs before an
  *  issue is opened: the first failure only records the state. */
 export const CONFIRM_FAILURES = 2;
+
+/**
+ * While an outage is open, comment on every Nth consecutive failure.
+ *
+ * Six is half an hour at GitHub's five-minute cron floor. The alternative --
+ * a comment every run -- is the reason people mute their own monitors: an
+ * outage that lasts the night produces a hundred identical notifications and
+ * tells you nothing the issue did not already say. The state still updates
+ * every run, so the downtime on the closing comment stays exact.
+ *
+ * A comment is also sent whenever the failure *changes*, because a host that
+ * starts refusing connections is different news from a host that was timing
+ * out, and that is the one thing the cadence must never swallow.
+ */
+export const COMMENT_EVERY = 6;
 
 export function formatDuration(ms) {
   if (!Number.isFinite(ms) || ms < 0) return 'unknown duration';
@@ -79,26 +95,51 @@ function outageFacts(target, result, previous) {
     .join('\n');
 }
 
-function buildIssueBody(result, previous, target) {
+/** So a reader knows whether the silence after this comment means anything. */
+/**
+ * The one line a silent monitor has to carry: when you will hear again.
+ * `dueIn === null` means the next update is not on a schedule (a comment sent
+ * because the failure changed), so no number is claimed.
+ */
+function cadenceNote(dueIn) {
+  if (dueIn === null) return null;
+  return `Next update after ${dueIn} more failing ${dueIn === 1 ? 'run' : 'runs'}, `
+    + 'sooner if this changes or the target recovers.';
+}
+
+function buildIssueBody(result, previous, target, home) {
   return [
     `The scheduled check for this target is failing.`,
     ``,
     outageFacts(target, result, previous),
     ``,
-    `This issue is managed automatically by [uptime](https://github.com/): comments follow each failing run and it closes itself when the target recovers. Please do not close or rename it manually while the outage is ongoing — comments and re-openings will just add noise; edit the title freely.`,
+    home
+      ? `This issue is managed automatically by [uptime](${home}): it comments on a fixed cadence while the target stays down and closes itself when the check passes again. Please do not close or rename it during an outage; edit the title freely.`
+      : `This issue is managed automatically by uptime: it comments on a fixed cadence while the target stays down and closes itself when the check passes again. Please do not close or rename it during an outage; edit the title freely.`,
     ``,
     issueMarker(result.id),
   ].join('\n');
 }
 
-function buildCommentBody(result, previous, target) {
+function buildCommentBody(result, previous, target, { dueIn = null } = {}) {
+  const was = previous?.last_result?.reason ?? null;
+  const now = result.reason ?? null;
+  // "Still down" is the boring case; a changed symptom is news worth breaking
+  // the cadence for, and the comment should say which one it is
+  const headline = was && now && was !== now
+    ? `Still down, and differently: ${was} -> ${now}.`
+    : 'Still down.';
   return [
-    `Still down.`,
+    headline,
     ``,
     outageFacts(target, result, previous),
     ``,
+    cadenceNote(dueIn),
+    ``,
     issueMarker(result.id),
-  ].join('\n');
+  ]
+    .filter((line) => line !== null)
+    .join('\n');
 }
 
 function buildCloseBody(result, previous) {
@@ -127,9 +168,12 @@ function isKnownStatus(previous) {
  *   target has never been checked (also used for structurally unknown entries)
  * @param {object} args.result normalized CheckResult from checkTarget()
  * @param {object} [args.target] resolved target config (used for labels only)
+ * @param {string} [args.home] repository URL, for the "managed automatically" line
+ * @param {number} [args.commentEvery] comment on every Nth failure while an
+ *   outage is open; a change in the failure reason always comments
  * @returns {{action: string, payload: object|null, next: object}}
  */
-export function decideTransition({ previous, result, target = null }) {
+export function decideTransition({ previous, result, target = null, home = null, commentEvery = COMMENT_EVERY }) {
   const prev = isKnownStatus(previous) ? previous : null;
   const cf = result.ok
     ? 0
@@ -177,12 +221,22 @@ export function decideTransition({ previous, result, target = null }) {
   // Failure below this line.
   const issueOpen = prev?.issue_number != null;
   if (issueOpen) {
-    // Same ongoing outage: exactly one comment, no duplicate issue.
+    // Same ongoing outage. Never a second issue; a comment only when the
+    // reader asked for one, or when there is something new to say.
+    const every = Number.isInteger(commentEvery) && commentEvery > 0 ? commentEvery : COMMENT_EVERY;
+    const changed = (prev.last_result?.reason ?? null) !== (result.reason ?? null)
+      || (prev.last_result?.status ?? null) !== (result.status ?? null);
+    const due = cf % every === 0;
+    if (!due && !changed) return { action: ACTION.NONE, payload: null, next };
     return {
       action: ACTION.COMMENT,
       payload: {
         issue_number: prev.issue_number,
-        body: buildCommentBody(result, { ...prev, consecutive_failures: cf }, target),
+        body: buildCommentBody(result, { ...prev, consecutive_failures: cf }, target, {
+          // every comment says when the next one is due, including this one:
+          // a countdown from zero would read "after 6 runs" one run late
+          dueIn: every - (cf % every),
+        }),
       },
       next,
     };
@@ -197,7 +251,7 @@ export function decideTransition({ previous, result, target = null }) {
       action: ACTION.OPEN_ISSUE,
       payload: {
         title: `[uptime] ${target?.label ?? result.id} is down (${result.reason ?? 'error'})`,
-        body: buildIssueBody(result, { ...prev, consecutive_failures: cf }, target),
+        body: buildIssueBody(result, { ...prev, consecutive_failures: cf }, target, home),
       },
       next,
     };

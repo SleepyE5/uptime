@@ -64,8 +64,10 @@ const table = [
   ['up -> down', upEntry(), failure(), ACTION.OPEN_ISSUE],
   ['down (no issue, run 1 of a new target) -> still down', downEntry({ consecutive_failures: 1 }), failure(), ACTION.OPEN_ISSUE],
   ['down (no issue, single unseen failure) stays below confirm threshold', downEntry({ consecutive_failures: 0 }), failure(), ACTION.NONE],
-  ['down with open issue -> comment, NOT another issue', downEntry({ issue_number: 41 }), failure(), ACTION.COMMENT],
-  ['down with open issue -> still down keeps commenting exactly once', downEntry({ issue_number: 41, consecutive_failures: 7 }), failure(), ACTION.COMMENT],
+  // the same failure repeating is the case the cadence exists for
+  ['down with open issue, unchanged failure between updates -> recorded, silent', downEntry({ issue_number: 41, consecutive_failures: 2, last_result: { reason: 'timeout', status: null } }), failure(), ACTION.NONE],
+  ['down with open issue, sixth consecutive failure -> comment', downEntry({ issue_number: 41, consecutive_failures: 5, last_result: { reason: 'timeout', status: null } }), failure(), ACTION.COMMENT],
+  ['down with open issue -> a changed failure comments immediately', downEntry({ issue_number: 41, consecutive_failures: 3 }), failure(), ACTION.COMMENT],
   ['down (issue open) -> up', downEntry({ issue_number: 41 }), result({ checkedAt: '2026-11-03T12:00:00.000Z' }), ACTION.CLOSE_ISSUE],
   ['down (never confirmed, no issue) -> up', downEntry({ issue_number: null }), result(), ACTION.NONE],
   ['up -> down with body mismatch still opens', upEntry(), failure({ status: 200, reason: 'body-mismatch', detail: 'body did not contain "ok"' }), ACTION.OPEN_ISSUE],
@@ -79,6 +81,29 @@ for (const [name, previous, res, expected] of table) {
 }
 
 // --- never-spam guarantees -------------------------------------------------
+
+test('the cadence is a knob, not a coincidence: every=1 restores per-run comments', () => {
+  // cf is counted for *this* run: a streak of 5 becomes 6, which is the first
+  // number the default cadence comments on
+  const silent = decideTransition({
+    previous: downEntry({ issue_number: 41, consecutive_failures: 4, last_result: { reason: 'timeout', status: null } }),
+    result: failure(), target,
+  });
+  assert.equal(silent.action, ACTION.NONE);
+  for (const commentEvery of [1, 2, 3]) {
+    const { action } = decideTransition({
+      previous: downEntry({ issue_number: 41, consecutive_failures: 5, last_result: { reason: 'timeout', status: null } }),
+      result: failure(), target, commentEvery,
+    });
+    assert.equal(action, ACTION.COMMENT, `cf=6 divisible by ${commentEvery}`);
+  }
+  // a nonsense value falls back to the documented default rather than either
+  // spamming or going silent
+  assert.equal(decideTransition({
+    previous: downEntry({ issue_number: 41, consecutive_failures: 5, last_result: { reason: 'timeout', status: null } }),
+    result: failure(), target, commentEvery: 0,
+  }).action, ACTION.COMMENT);
+});
 
 test('an ongoing outage never produces a second open-issue and never more than one comment per call', () => {
   // Simulate the runner's loop: the state machine is called once per run.
@@ -99,23 +124,65 @@ test('an ongoing outage never produces a second open-issue and never more than o
   assert.deepEqual(actions, [
     ACTION.NONE, // run 1: unseen failure, recorded only
     ACTION.OPEN_ISSUE, // run 2: confirmed outage, one issue
-    ACTION.COMMENT, // runs 3-6: exactly one comment each, never a duplicate issue
-    ACTION.COMMENT,
-    ACTION.COMMENT,
-    ACTION.COMMENT,
+    ACTION.NONE, // runs 3-5: the same timeout again, state updated in silence
+    ACTION.NONE,
+    ACTION.NONE,
+    ACTION.COMMENT, // run 6: the scheduled update, six failures after the outage
   ]);
   assert.equal(actions.filter((a) => a === ACTION.OPEN_ISSUE).length, 1);
 });
 
+test('the state advances on every run, including the silent ones', () => {
+  // downtime on the closing comment is computed from this, so silence must not
+  // mean "nothing happened"
+  let previous = downEntry({ issue_number: 41, consecutive_failures: 2, last_result: { reason: 'timeout', status: null } });
+  const counts = [];
+  for (const run of [3, 4, 5]) {
+    const { action, next } = decideTransition({
+      previous,
+      result: failure({ checkedAt: `2026-11-03T10:0${run}:00.000Z` }),
+      target,
+    });
+    assert.equal(action, ACTION.NONE, `run ${run} should stay quiet`);
+    counts.push(next.consecutive_failures);
+    previous = next;
+  }
+  assert.deepEqual(counts, [3, 4, 5]);
+  assert.equal(previous.last_checked_at, '2026-11-03T10:05:00.000Z');
+  assert.equal(previous.issue_number, 41, 'the outage keeps its issue while nobody is pinged');
+});
+
 test('one comment payload per call carries the issue number, so callers cannot spam by accident', () => {
   const { action, payload } = decideTransition({
-    previous: downEntry({ issue_number: 41, consecutive_failures: 3 }),
+    previous: downEntry({ issue_number: 41, consecutive_failures: 5, last_result: { reason: 'timeout', status: null } }),
     result: failure(),
     target,
   });
   assert.equal(action, ACTION.COMMENT);
   assert.equal(payload.issue_number, 41);
-  assert.match(payload.body, /Still down/);
+  assert.match(payload.body, /^Still down\./m);
+  assert.match(payload.body, /Next update after 6 more failing runs/);
+});
+
+test('an early comment says when the scheduled one would have been', () => {
+  const { payload } = decideTransition({
+    previous: downEntry({ issue_number: 41, consecutive_failures: 3 }), // 503 -> timeout
+    result: failure(),
+    target,
+  });
+  assert.match(payload.body, /differently: status-mismatch -> timeout/);
+  assert.match(payload.body, /Next update after 2 more failing runs/);
+});
+
+test('the repository link in the issue body comes from the caller, not a placeholder', () => {
+  const plain = decideTransition({ previous: upEntry(), result: failure(), target });
+  assert.match(plain.payload.body, /managed automatically by uptime:/);
+  assert.ok(!plain.payload.body.includes('github.com/)'), 'no bare link to github.com');
+
+  const linked = decideTransition({
+    previous: upEntry(), result: failure(), target, home: 'https://github.com/SleepyE5/uptime',
+  });
+  assert.match(linked.payload.body, /\[uptime\]\(https:\/\/github\.com\/SleepyE5\/uptime\)/);
 });
 
 // --- first-run rule ---------------------------------------------------------
