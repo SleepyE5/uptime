@@ -32,8 +32,39 @@ test('loads a valid file and applies defaults', () => {
   assert.deepEqual(api.expected_status, [200, 204]);
   assert.deepEqual(api.headers, {
     accept: 'application/json',
-    'user-agent': 'uptime/0.1 (+https://github.com/)',
+    'user-agent': 'uptime/0.1 (+https://github.com/SleepyE5/uptime)',
   });
+});
+
+test('every_failures rides from defaults to a target, and a target can set its own', () => {
+  const yaml = `
+version: 1
+defaults:
+  every_failures: 12
+targets:
+  - id: quiet
+    url: https://a.example.com
+  - id: noisy
+    url: https://b.example.com
+    every_failures: 1
+`;
+  const [quiet, noisy] = parseConfig(yaml).targets;
+  assert.equal(quiet.every_failures, 12);
+  assert.equal(noisy.every_failures, 1, 'a target that wants a comment every run can have one');
+  // absent everywhere: undefined, so the state machine's documented default applies
+  assert.equal(parseConfig('targets:\n  - id: x\n    url: https://a.example.com\n').targets[0].every_failures, undefined);
+});
+
+test('a cadence of zero or a string is refused, because it would mean never or always', () => {
+  for (const bad of ['0', '-3', '"six"', '1.5']) {
+    assert.throws(
+      () => parseConfig(`targets:\n  - id: x\n    url: https://a.example.com\n    every_failures: ${bad}\n`),
+      /every_failures must be a positive integer/,
+      `${bad} should not be accepted`,
+    );
+  }
+  assert.throws(() => parseConfig('defaults:\n  every_failures: 0\ntargets:\n  - id: x\n    url: https://a.example.com\n'),
+    /defaults.every_failures must be a positive integer/);
 });
 
 test('collects every error in one ConfigError instead of failing on the first', () => {

@@ -66,7 +66,11 @@ export async function runOnce({
   for (const target of config.targets) {
     const result = await checkTargetSafe(target, { transport, now });
     const previous = state.targets[target.id] ?? null;
-    const { action, payload, next } = decideTransition({ previous, result, target });
+    const { action, payload, next } = decideTransition({
+      previous, result, target,
+      home: repoUrl,
+      commentEvery: target.every_failures,
+    });
 
     const entry = {
       ...next,

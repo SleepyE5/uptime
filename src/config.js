@@ -21,6 +21,9 @@ export const DEFAULTS = Object.freeze({
   max_redirects: 5,
 });
 
+/** Sent in the User-Agent of every check, so a target's owner can reach you. */
+const HOME = 'uptime/0.1 (+https://github.com/SleepyE5/uptime)';
+
 const ID_RE = /^[a-z0-9][a-z0-9._-]{0,63}$/;
 
 function isPositiveInt(value) {
@@ -74,7 +77,7 @@ export function normalizeConfig(doc, source = 'targets.yml') {
   }
   const d = defaults && typeof defaults === 'object' && !Array.isArray(defaults) ? defaults : {};
   for (const key of Object.keys(d)) {
-    if (!['timeout_ms', 'max_redirects', 'expected_status'].includes(key)) {
+    if (!['timeout_ms', 'max_redirects', 'expected_status', 'every_failures'].includes(key)) {
       errors.push(`${source}: defaults: unknown key '${key}'`);
     }
   }
@@ -83,6 +86,9 @@ export function normalizeConfig(doc, source = 'targets.yml') {
   }
   if (d.max_redirects !== undefined && (!Number.isInteger(d.max_redirects) || d.max_redirects < 0)) {
     errors.push(`${source}: defaults.max_redirects must be an integer >= 0, got ${JSON.stringify(d.max_redirects)}`);
+  }
+  if (d.every_failures !== undefined && !isPositiveInt(d.every_failures)) {
+    errors.push(`${source}: defaults.every_failures must be a positive integer, got ${JSON.stringify(d.every_failures)}`);
   }
   const defaultExpected = validateExpectedStatus(d.expected_status, `${source}: defaults`, errors);
 
@@ -95,7 +101,7 @@ export function normalizeConfig(doc, source = 'targets.yml') {
       return;
     }
     for (const key of Object.keys(raw)) {
-      if (!['id', 'url', 'label', 'expected_status', 'timeout_ms', 'max_redirects', 'contain', 'headers'].includes(key)) {
+      if (!['id', 'url', 'label', 'expected_status', 'timeout_ms', 'max_redirects', 'contain', 'headers', 'every_failures'].includes(key)) {
         errors.push(`${where}: unknown key '${key}'`);
       }
     }
@@ -134,6 +140,9 @@ export function normalizeConfig(doc, source = 'targets.yml') {
     if (raw.max_redirects !== undefined && (!Number.isInteger(raw.max_redirects) || raw.max_redirects < 0)) {
       errors.push(`${where}: max_redirects must be an integer >= 0, got ${JSON.stringify(raw.max_redirects)}`);
     }
+    if (raw.every_failures !== undefined && !isPositiveInt(raw.every_failures)) {
+      errors.push(`${where}: every_failures must be a positive integer, got ${JSON.stringify(raw.every_failures)}`);
+    }
     const expected = validateExpectedStatus(raw.expected_status, where, errors);
     let headers = null;
     if (raw.headers !== undefined) {
@@ -159,7 +168,10 @@ export function normalizeConfig(doc, source = 'targets.yml') {
         timeout_ms: raw.timeout_ms ?? (isPositiveInt(d.timeout_ms) ? d.timeout_ms : DEFAULTS.timeout_ms),
         max_redirects: raw.max_redirects ?? (Number.isInteger(d.max_redirects) ? d.max_redirects : DEFAULTS.max_redirects),
         contain: raw.contain ?? null,
-        headers: { 'user-agent': 'uptime/0.1 (+https://github.com/)', ...(headers ?? {}) },
+        // the cadence, in failing runs, between status comments on an open issue
+        every_failures: raw.every_failures
+          ?? (isPositiveInt(d.every_failures) ? d.every_failures : undefined),
+        headers: { 'user-agent': HOME, ...(headers ?? {}) },
       });
     }
   });
