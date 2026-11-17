@@ -11,27 +11,32 @@ version: 1
 defaults:
   timeout_ms: 10000
   max_redirects: 5
+  every_failures: 6     # ~30 min at the five-minute cron floor
 
 targets:
-  # A static page: plain status check plus a body assertion, so a 200 that
-  # serves an error template still counts as DOWN.
-  - id: homepage
-    url: https://example.com
-    label: Homepage
-    contain: "Example Domain"
+  # The portfolio. `contain` matters here: GitHub Pages answers 200 with its
+  # 404 page for a path that no longer exists, so a status check alone would
+  # call a deleted site healthy.
+  - id: portfolio
+    url: https://sleepye5.github.io/
+    label: Portfolio
+    contain: "Enrico Sgiarovello"
 
-  # An API health endpoint that may legitimately answer 200 or 204.
-  - id: api-health
+  # Plain HTTP is redirected to HTTPS by Pages. Watching the chain catches a
+  # misconfigured apex domain, which is the kind of thing that breaks every
+  # link at once and looks like nothing in a status-only check.
+  - id: http-upgrade
+    url: http://sleepye5.github.io/
+    label: HTTP to HTTPS
+    max_redirects: 3
+
+  # A body assertion on JSON, plus a shorter timeout: this is the target that
+  # tells you whether GitHub's own status API is lying to you.
+  - id: github-status
     url: https://www.githubstatus.com/api/v2/status.json
-    label: Status API
+    label: GitHub status API
     expected_status: [200]
     contain: '"indicator"'
     timeout_ms: 5000
     headers:
       accept: application/json
-
-  # Redirect chains are followed and the hop count is recorded.
-  - id: www-redirect
-    url: https://www.example.com
-    label: WWW (redirects to apex)
-    max_redirects: 3

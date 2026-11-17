@@ -19,6 +19,25 @@
       "status": "up",
       "url": "https://www.githubstatus.com/api/v2/status.json"
     },
+    "github-status": {
+      "consecutive_failures": 0,
+      "first_seen_at": "2026-11-17T18:58:57.955Z",
+      "id": "github-status",
+      "issue_number": null,
+      "label": "GitHub status API",
+      "last_checked_at": "2026-11-17T18:59:22.792Z",
+      "last_failure_at": null,
+      "last_result": {
+        "detail": null,
+        "ok": true,
+        "reason": null,
+        "status": 200
+      },
+      "last_success_at": "2026-11-17T18:59:22.792Z",
+      "outage_started_at": null,
+      "status": "up",
+      "url": "https://www.githubstatus.com/api/v2/status.json"
+    },
     "homepage": {
       "consecutive_failures": 0,
       "first_seen_at": "2026-11-17T18:31:55.311Z",
@@ -37,6 +56,44 @@
       "outage_started_at": null,
       "status": "up",
       "url": "https://example.com/"
+    },
+    "http-upgrade": {
+      "consecutive_failures": 0,
+      "first_seen_at": "2026-11-17T18:58:57.697Z",
+      "id": "http-upgrade",
+      "issue_number": null,
+      "label": "HTTP to HTTPS",
+      "last_checked_at": "2026-11-17T18:59:22.752Z",
+      "last_failure_at": null,
+      "last_result": {
+        "detail": null,
+        "ok": true,
+        "reason": null,
+        "status": 200
+      },
+      "last_success_at": "2026-11-17T18:59:22.752Z",
+      "outage_started_at": null,
+      "status": "up",
+      "url": "http://sleepye5.github.io/"
+    },
+    "portfolio": {
+      "consecutive_failures": 0,
+      "first_seen_at": "2026-11-17T18:58:57.397Z",
+      "id": "portfolio",
+      "issue_number": null,
+      "label": "Portfolio",
+      "last_checked_at": "2026-11-17T18:59:22.679Z",
+      "last_failure_at": null,
+      "last_result": {
+        "detail": null,
+        "ok": true,
+        "reason": null,
+        "status": 200
+      },
+      "last_success_at": "2026-11-17T18:59:22.679Z",
+      "outage_started_at": null,
+      "status": "up",
+      "url": "https://sleepye5.github.io/"
     },
     "www-redirect": {
       "consecutive_failures": 0,
@@ -58,6 +115,6 @@
       "url": "https://www.example.com/"
     }
   },
-  "updated_at": "2026-11-17T18:31:55.610Z",
+  "updated_at": "2026-11-17T18:59:22.840Z",
   "version": 1
 }
