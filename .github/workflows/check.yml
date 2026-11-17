@@ -4,6 +4,12 @@ name: uptime-check
 # can be delayed by several minutes (sometimes much more) during periods of
 # high load. This is a best-effort monitor, not a pager. See README "Honest
 # trade-offs".
+#
+# The */5 floor is deliberate even though this repo's three targets are static
+# pages that would tolerate ten minutes: the monitor is the product, and it is
+# worth seeing the shortest interval GitHub actually allows exercised here
+# rather than described. Every run costs runner minutes, so this is the line
+# to move first if you fork it and care about the bill.
 on:
   schedule:
     - cron: "*/5 * * * *"
