@@ -1,0 +1,63 @@
+name: uptime-check
+
+# Cron granularity is 5 minutes minimum on GitHub Actions, and scheduled runs
+# can be delayed by several minutes (sometimes much more) during periods of
+# high load. This is a best-effort monitor, not a pager. See README "Honest
+# trade-offs".
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch: {}
+
+# issues:write  -> open/comment/close alert issues using the built-in token
+# contents:write -> commit state/history.json and the README status block back
+# Everything else is inherited-none by this explicit block.
+permissions:
+  issues: write
+  contents: write
+
+concurrency:
+  group: uptime-check
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # Default token; permissions above govern what it can do.
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      # Note on GITHUB_TOKEN: issues are opened by github-actions[bot] using
+      # the workflow-scoped secrets.GITHUB_TOKEN, which is granted exactly the
+      # issues:write / contents:write permissions declared above. It only
+      # works against THIS repository, expires with the job, and pushes made
+      # with it do not trigger other workflows (GitHub anti-recursion rule).
+      # If your org policies or branch protections block bot pushes, create a
+      # fine-grained PAT, store it as UPTIME_TOKEN, and swap it in below.
+      - name: Check targets and update issues
+        run: node bin/uptime.js run
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_SERVER_URL: ${{ github.server_url }}
+
+      - name: Commit state and status table
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add state/history.json README.md badge.svg
+          if git diff --cached --quiet; then
+            echo "No state changes to commit."
+          else
+            git commit -m "chore(uptime): update state and status table"
+            git push
+          fi
