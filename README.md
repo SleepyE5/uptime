@@ -24,11 +24,11 @@ monitor is worse than no monitor.
 <!-- uptime:begin -->
 | Target | Status | Last check | Last success | Failures | Issue | Last detail |
 | ------ | ------ | ---------- | ------------ | -------- | ----- | ----------- |
-| [Portfolio (portfolio)](https://sleepye5.github.io/) | ![up](https://img.shields.io/badge/status-up-brightgreen) | 23:14 UTC | just now | 0 | — |  |
-| [HTTP to HTTPS (http-upgrade)](http://sleepye5.github.io/) | ![up](https://img.shields.io/badge/status-up-brightgreen) | 23:14 UTC | just now | 0 | — |  |
-| [GitHub status API (github-status)](https://www.githubstatus.com/api/v2/status.json) | ![up](https://img.shields.io/badge/status-up-brightgreen) | 23:14 UTC | just now | 0 | — |  |
+| [Portfolio (portfolio)](https://sleepye5.github.io/) | ![up](https://img.shields.io/badge/status-up-brightgreen) | 05:27 UTC | just now | 0 | — |  |
+| [HTTP to HTTPS (http-upgrade)](http://sleepye5.github.io/) | ![up](https://img.shields.io/badge/status-up-brightgreen) | 05:27 UTC | just now | 0 | — |  |
+| [GitHub status API (github-status)](https://www.githubstatus.com/api/v2/status.json) | ![up](https://img.shields.io/badge/status-up-brightgreen) | 05:27 UTC | just now | 0 | — |  |
 
-_Checked at 2026-11-24 23:14 UTC. Ages are relative to that run._
+_Checked at 2026-11-25 05:27 UTC. Ages are relative to that run._
 
 _Removed targets (kept for history, no longer checked):_
 
